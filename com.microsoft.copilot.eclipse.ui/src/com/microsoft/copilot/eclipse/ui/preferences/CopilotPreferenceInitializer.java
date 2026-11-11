@@ -10,6 +10,7 @@ import org.eclipse.core.runtime.preferences.IEclipsePreferences;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.microsoft.copilot.eclipse.core.Constants;
+import com.microsoft.copilot.eclipse.core.chat.ChatRequestRetry;
 import com.microsoft.copilot.eclipse.core.chat.CustomInstructionsChatLoadScope;
 import com.microsoft.copilot.eclipse.ui.CopilotUi;
 import com.microsoft.copilot.eclipse.ui.chat.confirmation.FileOperationConfirmationHandler;
@@ -31,6 +32,8 @@ public class CopilotPreferenceInitializer extends AbstractPreferenceInitializer 
     pref.setDefault(Constants.PROXY_KERBEROS_SP, "");
     pref.setDefault(Constants.GITHUB_ENTERPRISE, "");
     pref.setDefault(Constants.AGENT_MAX_REQUESTS, 25);
+    pref.setDefault(Constants.CHAT_MAX_RETRIES, ChatRequestRetry.DEFAULT_MAX_RETRIES);
+    pref.setDefault(Constants.CHAT_RETRY_INTERVAL_SECONDS, ChatRequestRetry.DEFAULT_INTERVAL_SECONDS);
     pref.setDefault(Constants.ENABLE_SKILLS, true);
     pref.setDefault(Constants.CUSTOM_INSTRUCTIONS_WORKSPACE_ENABLED, false);
     pref.setDefault(Constants.CUSTOM_INSTRUCTIONS_WORKSPACE, "");

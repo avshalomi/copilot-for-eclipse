@@ -37,6 +37,7 @@ import org.osgi.framework.FrameworkUtil;
 import com.microsoft.copilot.eclipse.core.AuthStatusManager;
 import com.microsoft.copilot.eclipse.core.CopilotCore;
 import com.microsoft.copilot.eclipse.core.FeatureFlags;
+import com.microsoft.copilot.eclipse.core.chat.ChatRequestRetry;
 import com.microsoft.copilot.eclipse.core.chat.service.IChatServiceManager;
 import com.microsoft.copilot.eclipse.core.chat.service.ICustomizationFileService.CustomizationType;
 import com.microsoft.copilot.eclipse.core.chat.service.IMcpConfigService;
@@ -139,6 +140,7 @@ public class CopilotLanguageClient extends LanguageClientImpl {
    */
   @JsonRequest("conversation/invokeClientTool")
   public CompletableFuture<Object> invokeClientTool(InvokeClientToolParams params) {
+    ChatRequestRetry.markToolActivity(params.getConversationId());
     return CompletableFuture.supplyAsync(() -> {
       try {
         CompletableFuture<LanguageModelToolResult[]> toolFuture = CopilotCore.getPlugin().getChatEventsManager()
@@ -168,6 +170,7 @@ public class CopilotLanguageClient extends LanguageClientImpl {
    */
   @JsonRequest("conversation/invokeClientToolConfirmation")
   public CompletableFuture<Object[]> confirmClientTool(InvokeClientToolConfirmationParams params) {
+    ChatRequestRetry.markToolActivity(params.getConversationId());
     return CopilotCore.getPlugin().getChatEventsManager().confirmAgentToolInvocation(params).thenApply(result -> {
       if (result == null) {
         return new Object[] { null,
@@ -312,11 +315,12 @@ public class CopilotLanguageClient extends LanguageClientImpl {
   public void onDidChangeFeatureFlags(DidChangeFeatureFlagsParams params) {
     FeatureFlags flags = CopilotCore.getPlugin().getFeatureFlags();
     if (flags != null) {
-      flags.setAgentModeEnabled(params.isAgentModeEnabled());
-      flags.setMcpEnabled(params.isMcpEnabled());
+      // Agent tools and approvals are controlled by local user preferences in this build.
+      flags.setAgentModeEnabled(true);
+      flags.setMcpEnabled(true);
       flags.setByokEnabled(params.isByokEnabled());
       flags.setClientPreviewFeatureEnabled(params.isClientPreviewFeaturesEnabled());
-      flags.setAutoApprovalTokenEnabled(params.isAutoApprovalEnabled());
+      flags.setAutoApprovalTokenEnabled(true);
     }
 
     if (eventBroker != null) {
@@ -331,16 +335,12 @@ public class CopilotLanguageClient extends LanguageClientImpl {
   public void onDidChangePolicy(DidChangePolicyParams params) {
     FeatureFlags flags = CopilotCore.getPlugin().getFeatureFlags();
     if (flags != null) {
-      if (flags.isMcpContributionPointEnabled() != params.isMcpContributionPointEnabled()) {
-        flags.setMcpContributionPointEnabled(params.isMcpContributionPointEnabled());
-        eventBroker.post(CopilotEventConstants.TOPIC_DID_CHANGE_MCP_CONTRIBUTION_POINT_POLICY,
-            params.isMcpContributionPointEnabled());
-      }
+      // Organization policy cannot disable locally configured MCP servers or approval rules.
       if (flags.isCustomAgentPolicyEnabled() != params.isCustomAgentEnabled()) {
         flags.setCustomAgentPolicyEnabled(params.isCustomAgentEnabled());
         eventBroker.post(CopilotEventConstants.TOPIC_DID_CHANGE_CUSTOM_AGENT_POLICY, params.isCustomAgentEnabled());
       }
-      flags.setAutoApprovalPolicyEnabled(params.isAutoApprovalPolicyEnabled());
+      flags.setAutoApprovalPolicyEnabled(true);
       if (flags.isAutoModelPolicyEnabled() != params.isAutoModelEnabled()) {
         flags.setAutoModelPolicyEnabled(params.isAutoModelEnabled());
         if (eventBroker != null) {
@@ -433,6 +433,12 @@ public class CopilotLanguageClient extends LanguageClientImpl {
   @Override
   public void notifyProgress(ProgressParams progress) {
     var chatProgress = (ChatProgressValue) progress.getValue().getLeft();
+    String token = progress.getToken().isLeft() ? progress.getToken().getLeft()
+        : progress.getToken().getRight().toString();
+    if (ChatRequestRetry.interceptProgress(token, chatProgress,
+        CopilotCore.getPlugin().getChatEventsManager()::notifyProgress)) {
+      return;
+    }
     CopilotCore.getPlugin().getChatEventsManager().notifyProgress(chatProgress);
   }
 

@@ -84,6 +84,18 @@ Next Edit Suggestions predict your next edit location and propose the next chang
 
 **Agent Mode** works autonomously across your project context to identify and fix issues, propose implementation steps, and support larger coding tasks with iterative guidance.
 
+#### Network retries
+
+Configure **Maximum chat retries** and **Interval between retries (seconds)** under
+**Window > Preferences > Copilot > Chat**. Defaults are **3 retries**, **5 seconds apart**; the initial attempt does not
+count toward the retry limit. Set maximum retries to **0** to disable automatic retries. Changes apply to new messages.
+
+Retries cover connection failures, timeouts, HTTP 400/404 responses that can occur with proxies, rate limiting (429),
+and server errors (5xx). Authentication, quota, unsupported-model, and content-filter failures are shown immediately.
+The plugin retries only before streamed response content, thinking, or tool activity begins, to avoid replaying work.
+Remote coding-agent jobs are not automatically resubmitted. **Stop**, closing the chat view, or stopping the language
+server cancels pending retries. The final failure is displayed when retries are exhausted.
+
 ### Model Context Protocol (MCP)
 
 MCP support enables integrating external tools and services into Copilot workflows where configured.

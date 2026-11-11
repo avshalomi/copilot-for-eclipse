@@ -15,7 +15,7 @@ public class FeatureFlags {
 
   private boolean clientPreviewFeatureEnabled = true;
 
-  private boolean mcpContributionPointEnabled = false;
+  private boolean mcpContributionPointEnabled = true;
 
   private boolean customAgentPolicyEnabled = true;
 

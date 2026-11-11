@@ -7,20 +7,12 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang3.StringUtils;
-import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.graphics.Image;
 
 import com.microsoft.copilot.eclipse.core.Constants;
-import com.microsoft.copilot.eclipse.core.CopilotCore;
-import com.microsoft.copilot.eclipse.core.lsp.CopilotLanguageServerConnection;
-import com.microsoft.copilot.eclipse.core.lsp.mcp.McpRegistryAllowList;
-import com.microsoft.copilot.eclipse.core.lsp.mcp.McpRegistryEntry;
-import com.microsoft.copilot.eclipse.core.lsp.mcp.RegistryAccess;
 import com.microsoft.copilot.eclipse.core.lsp.mcp.registry.Icon;
-import com.microsoft.copilot.eclipse.core.lsp.protocol.NullParams;
 import com.microsoft.copilot.eclipse.ui.CopilotImages;
 import com.microsoft.copilot.eclipse.ui.CopilotUi;
-import com.microsoft.copilot.eclipse.ui.dialogs.mcp.Messages;
 import com.microsoft.copilot.eclipse.ui.preferences.CopilotPreferenceInitializer;
 
 /**
@@ -28,82 +20,21 @@ import com.microsoft.copilot.eclipse.ui.preferences.CopilotPreferenceInitializer
  */
 public class McpUtils {
   /**
-   * Get the MCP allowlist from the Copilot Language Server connection. This method retrieves the allowlist which
-   * contains the MCP registry entries and their access modes.
+   * Returns the user's MCP registry URL, independent of organization registry restrictions.
    *
-   * @param copilotLanguageServerConnection The Copilot Language Server connection to use for retrieving the allowlist
-   * @return CompletableFuture containing the MCP allowlist, or null if no connection is available
+   * @return the configured registry base URL without a version suffix
    */
-  public static CompletableFuture<McpRegistryAllowList> getMcpAllowList(
-      CopilotLanguageServerConnection copilotLanguageServerConnection) {
-    // Early return with empty allowlist if no language server connection
-    if (copilotLanguageServerConnection == null) {
-      CopilotCore.LOGGER.error(new IllegalStateException("Copilot Language Server connection is not available."));
-      return CompletableFuture.completedFuture(null);
-    }
-
-    // Retrieve MCP allowlist from the language server
-    return copilotLanguageServerConnection.getMcpAllowlist(new NullParams());
-  }
-
-  /**
-   * Get the MCP registry base URL from the allowlist. This method processes the allowlist to determine the appropriate
-   * registry URL based on the access mode and local preferences.
-   *
-   * <p>URL selection logic based on admin settings:
-   * <ol>
-   * <li>If admin sets registry_only, the admin-provided registry URL should directly overwrite the local registry URL
-   * setting.</li>
-   * <li>If admin sets 'allow_all' and provides a registry URL, users can set any registry URL or reuse the
-   * admin-provided registry URL.</li>
-   * <li>If admin does not set any registry URL, users can set any registry URL in the IDE.</li>
-   * </ol>
-   *
-   * @return The selected MCP registry URL, or an empty string if no valid URL is available
-   */
-  public static String parseMcpRegistryBaseUrlFromAllowList(McpRegistryAllowList allowList) {
+  public static String getMcpRegistryBaseUrl() {
     String localUrl = CopilotUi.getStringPreference(Constants.MCP_REGISTRY_URL,
         CopilotPreferenceInitializer.DEFAULT_MCP_REGISTRY_BASE_URL);
-    String registryBaseUrl = extractBaseUrl(localUrl.replaceAll("/+$", ""));
-
-    // If no allowlist data exists, fall back to local preference
-    if (allowList == null || allowList.getMcpRegistries() == null || allowList.getMcpRegistries().isEmpty()) {
-      return registryBaseUrl;
-    }
-
-    // Process first registry entry
-    McpRegistryEntry entry = allowList.getMcpRegistries().get(0);
-    RegistryAccess registryAccess = entry.getRegistryAccess();
-    String allowlistBaseUrl = extractBaseUrl(entry.getUrl() != null ? entry.getUrl().replaceAll("/+$", "")
-        : "");
-
-    // Determine URL based on access mode (registry_only takes precedence)
-    if (registryAccess == RegistryAccess.registry_only) {
-      // Use only allowlist base URL
-      if (StringUtils.isBlank(allowlistBaseUrl)) {
-        SwtUtils.getDisplay().asyncExec(() -> {
-          MessageDialog.openWarning(SwtUtils.getDisplay().getActiveShell(),
-              Messages.mcpRegistryDialog_emptyUrlForRegistryOnly_title,
-              Messages.mcpRegistryDialog_emptyUrlForRegistryOnly_msg);
-        });
-        return "";
-      }
-      return allowlistBaseUrl;
-    } else if (RegistryAccess.allow_all == registryAccess) {
-      // Prefer local URL, fallback to allowlist URL
-      return StringUtils.isNotBlank(registryBaseUrl) ? registryBaseUrl : allowlistBaseUrl;
-    }
-
-    // Default fallback to local preference for unknown access modes
-    return registryBaseUrl;
+    return extractBaseUrl(localUrl.replaceAll("/+$", ""));
   }
 
   /**
-   * Extracts base URL from full url in the ServerDetail. This will remove version suffix patterns like /v0/servers,
-   * /v1/servers, /v0.1/servers, /v0.1.1/servers, etc.
+   * Removes version suffixes such as /v0.1/servers from a registry URL.
    *
-   * @param fullUrl The full URL string
-   * @return The base URL without version suffix
+   * @param fullUrl the full URL
+   * @return the base URL without a version suffix
    */
   public static String extractBaseUrl(String fullUrl) {
     if (fullUrl == null) {

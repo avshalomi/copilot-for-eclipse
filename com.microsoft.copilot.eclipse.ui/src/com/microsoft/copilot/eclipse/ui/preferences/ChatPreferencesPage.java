@@ -16,6 +16,7 @@ import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 
 import com.microsoft.copilot.eclipse.core.Constants;
+import com.microsoft.copilot.eclipse.core.chat.ChatRequestRetry;
 import com.microsoft.copilot.eclipse.ui.CopilotUi;
 
 /**
@@ -58,6 +59,20 @@ public class ChatPreferencesPage extends FieldEditorPreferencePage implements IW
     addField(agentMaxRequestsField);
 
     addNote(parent, Messages.preferences_page_agent_max_requests_desc);
+    addSeparator(parent);
+
+    IntegerFieldEditor maxRetries = new IntegerFieldEditor(Constants.CHAT_MAX_RETRIES,
+        Messages.preferences_page_chat_max_retries, createSectionComposite(parent, gdf));
+    maxRetries.setValidRange(0, ChatRequestRetry.MAX_RETRIES);
+    maxRetries.setErrorMessage(Messages.preferences_page_chat_max_retries_validation_error);
+    addField(maxRetries);
+
+    IntegerFieldEditor retryInterval = new IntegerFieldEditor(Constants.CHAT_RETRY_INTERVAL_SECONDS,
+        Messages.preferences_page_chat_retry_interval, createSectionComposite(parent, gdf));
+    retryInterval.setValidRange(1, ChatRequestRetry.MAX_INTERVAL_SECONDS);
+    retryInterval.setErrorMessage(Messages.preferences_page_chat_retry_interval_validation_error);
+    addField(retryInterval);
+    addNote(parent, Messages.preferences_page_chat_retry_desc);
   }
 
   @Override

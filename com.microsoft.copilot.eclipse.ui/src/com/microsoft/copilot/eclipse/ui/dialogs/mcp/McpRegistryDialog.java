@@ -162,7 +162,7 @@ public class McpRegistryDialog extends Dialog {
    * Fetch the MCP registry URL and refresh the content.
    */
   private void fetchUrlAndRefreshContent() {
-    controller.loadMcpRegistryAllowListAndUrl().thenRun(() -> {
+    controller.loadMcpRegistryUrl().thenRun(() -> {
       SwtUtils.getDisplay().asyncExec(() -> {
         if (contentContainer != null && !contentContainer.isDisposed()) {
           createContent(contentContainer);
@@ -421,20 +421,15 @@ public class McpRegistryDialog extends Dialog {
   }
 
   private void createHeaderButtons(Composite parent) {
-    // Determine if we should show the edit button (not in registry_only mode)
-    boolean shouldShowEditButton = !controller.isRegistryOnlyMode();
-
     Composite buttonComposite = new Composite(parent, SWT.NONE);
-    GridLayout buttonLayout = createZeroMarginGridLayout(shouldShowEditButton ? 2 : 1, false);
+    GridLayout buttonLayout = createZeroMarginGridLayout(2, false);
     buttonLayout.horizontalSpacing = 2;
     buttonComposite.setLayout(buttonLayout);
     buttonComposite.setLayoutData(new GridData(SWT.BEGINNING, SWT.CENTER, false, false));
 
     createRefreshButton(buttonComposite);
 
-    if (shouldShowEditButton) {
-      createChangeUrlButton(buttonComposite);
-    }
+    createChangeUrlButton(buttonComposite);
   }
 
   private void createRefreshButton(Composite parent) {

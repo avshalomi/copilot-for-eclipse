@@ -36,7 +36,6 @@ import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.preference.PreferenceDialog;
 import org.eclipse.jface.preference.StringFieldEditor;
 import org.eclipse.lsp4j.WorkspaceFolder;
-import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
@@ -64,10 +63,8 @@ import com.microsoft.copilot.eclipse.core.CopilotCore;
 import com.microsoft.copilot.eclipse.core.FeatureFlags;
 import com.microsoft.copilot.eclipse.core.chat.CustomChatMode;
 import com.microsoft.copilot.eclipse.core.chat.CustomChatModeManager;
-import com.microsoft.copilot.eclipse.core.lsp.CopilotLanguageServerConnection;
 import com.microsoft.copilot.eclipse.core.lsp.mcp.McpServerStatus;
 import com.microsoft.copilot.eclipse.core.lsp.mcp.McpServerToolsCollection;
-import com.microsoft.copilot.eclipse.core.lsp.mcp.RegistryAccess;
 import com.microsoft.copilot.eclipse.core.lsp.protocol.LanguageModelToolInformation;
 import com.microsoft.copilot.eclipse.core.utils.WorkspaceUtils;
 import com.microsoft.copilot.eclipse.ui.CopilotImages;
@@ -113,8 +110,6 @@ public class McpPreferencePage extends FieldEditorPreferencePage implements IWor
   private Composite extMcpTitleComposite; // store title composite for layout refresh and dynamic icon creation
   private StringFieldEditor mcpRegistryField;
   private Button openRegistryButton;
-  private Composite registryInfoMessageComposite;
-  private CopilotLanguageServerConnection copilotLanguageServerConnection;
 
   /**
    * Constructor.
@@ -126,9 +121,6 @@ public class McpPreferencePage extends FieldEditorPreferencePage implements IWor
   @Override
   public void init(IWorkbench workbench) {
     setPreferenceStore(CopilotUi.getPlugin().getPreferenceStore());
-    this.copilotLanguageServerConnection = CopilotCore.getPlugin() != null
-        ? CopilotCore.getPlugin().getCopilotLanguageServer()
-        : null;
 
     Job job = new Job("Binding to MCP service...") {
       @Override
@@ -265,32 +257,7 @@ public class McpPreferencePage extends FieldEditorPreferencePage implements IWor
 
       @Override
       protected void doLoad() {
-        McpUtils.getMcpAllowList(copilotLanguageServerConnection).thenAccept(allowList -> {
-          SwtUtils.invokeOnDisplayThreadAsync(() -> {
-            if (allowList == null || allowList.mcpRegistries.isEmpty()) {
-              getTextControl().setText(CopilotUi.getStringPreference(Constants.MCP_REGISTRY_URL,
-                  CopilotPreferenceInitializer.DEFAULT_MCP_REGISTRY_BASE_URL));
-            } else {
-              // Use the first registry URL from the allowlist
-              String registryUrl = McpUtils.parseMcpRegistryBaseUrlFromAllowList(allowList);
-              getTextControl().setText(registryUrl != null ? registryUrl
-                  : CopilotUi.getStringPreference(Constants.MCP_REGISTRY_URL,
-                      CopilotPreferenceInitializer.DEFAULT_MCP_REGISTRY_BASE_URL));
-              if (allowList.mcpRegistries.get(0).getRegistryAccess() == RegistryAccess.registry_only) {
-                // Disable the field
-                getTextControl().setEnabled(false);
-
-                // Show info message
-                String owner = allowList.mcpRegistries.get(0).getOwner().getLogin();
-                String message = NLS.bind(Messages.preferences_page_mcp_registry_restricted_info, owner);
-                showRegistryInfoMessage(message);
-              }
-            }
-          });
-        }).exceptionally(ex -> {
-          CopilotCore.LOGGER.error("Failed to load MCP registry URL", ex);
-          return null;
-        });
+        getTextControl().setText(McpUtils.getMcpRegistryBaseUrl());
 
         // Add modify listener after text control is created and loaded
         getTextControl().addModifyListener(e -> {
@@ -360,29 +327,6 @@ public class McpPreferencePage extends FieldEditorPreferencePage implements IWor
     // Set equal height constraint for both groups
     ((GridData) mcpGroup.getLayoutData()).heightHint = GROUP_HEIGHT_HINT;
     ((GridData) toolsGroup.getLayoutData()).heightHint = GROUP_HEIGHT_HINT;
-  }
-
-  /**
-   * Shows an info message below the registry field when the URL is managed and cannot be modified.
-   *
-   * @param message the message to display
-   */
-  private void showRegistryInfoMessage(String message) {
-    if (mcpRegistryGroup == null || mcpRegistryGroup.isDisposed()) {
-      return;
-    }
-
-    // Remove existing info message if present
-    if (registryInfoMessageComposite != null && !registryInfoMessageComposite.isDisposed()) {
-      registryInfoMessageComposite.dispose();
-    }
-
-    // Create info message composite using WrappableIconLink
-    registryInfoMessageComposite = WrappableIconLink.create(mcpRegistryGroup,
-        CopilotImages.getImage(CopilotImages.IMG_INFORMATION), message);
-
-    // Trigger layout update on the entire hierarchy to ensure proper sizing
-    mcpRegistryGroup.requestLayout();
   }
 
   private void createExtMcpRegistrationArea(Composite parent) {

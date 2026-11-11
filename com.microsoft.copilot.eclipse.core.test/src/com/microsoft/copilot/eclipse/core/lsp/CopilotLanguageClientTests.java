@@ -125,8 +125,40 @@ class CopilotLanguageClientTests {
 
       // Assert
       verify(mockFeatureFlags).setAgentModeEnabled(true);
-      verify(mockFeatureFlags).setMcpEnabled(false);
+      verify(mockFeatureFlags).setMcpEnabled(true);
       verify(mockFeatureFlags).setByokEnabled(false);
+    }
+  }
+
+  @Test
+  void testPolicyAndTokenRestrictions_localAgentControlsRemainAvailable() {
+    DidChangeFeatureFlagsParams token = new DidChangeFeatureFlagsParams();
+    token.setFeatureFlags(Map.of("agent_mode", "0", "mcp", "0", "agent_mode_auto_approval", "0"));
+    token.setByokEnabled(false);
+    DidChangePolicyParams policy = new DidChangePolicyParams();
+    policy.setMcpContributionPointEnabled(false);
+    policy.setAutoApprovalPolicyEnabled(false);
+    FeatureFlags flags = new FeatureFlags();
+
+    try (MockedStatic<CopilotCore> copilotCoreMock = Mockito.mockStatic(CopilotCore.class)) {
+      copilotCoreMock.when(CopilotCore::getPlugin).thenReturn(plugin);
+      when(plugin.getFeatureFlags()).thenReturn(flags);
+
+      // Exercise both notification orders, including later token refreshes.
+      client.onDidChangePolicy(policy);
+      client.onDidChangeFeatureFlags(token);
+      client.onDidChangePolicy(policy);
+      client.onDidChangeFeatureFlags(token);
+
+      assertTrue(flags.isAgentModeEnabled());
+      assertTrue(flags.isMcpEnabled());
+      assertTrue(flags.isMcpContributionPointEnabled());
+      assertTrue(flags.isAutoApprovalEnabled());
+      assertFalse(flags.isByokEnabled());
+      // Preserve the received protocol data for other consumers and diagnostics.
+      assertFalse(token.isMcpEnabled());
+      assertFalse(token.isAutoApprovalEnabled());
+      assertFalse(policy.isAutoApprovalPolicyEnabled());
     }
   }
 

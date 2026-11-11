@@ -52,6 +52,15 @@ Tycho build. The `-f` flag matches CI and lets npm proceed if the agent dependen
 
 The installable P2 repository is generated in `com.microsoft.copilot.eclipse.repository/target/repository/`.
 
+On Windows, `scripts/Build-UpdateSite.ps1` runs verification and packages the update site as
+`com.microsoft.copilot.eclipse.repository/target/GithubCopilotForEclipse-custom.zip`.
+Use `-JavaHome <jdk-directory>` or `-MavenHome <maven-directory>` to select installed tools.
+If your network proxy uses certificates trusted by Windows, add `-UseWindowsCertificateStore`; TLS verification
+remains enabled. `-PackageOnly` packages an already-built P2 repository without running Maven again.
+`-TargetPlatformFile build-support/network.target` selects a build target that omits optional E4 development spies
+and resolves maintained Bouncy Castle libraries through the configured Maven repository.
+Install the ZIP through **Help > Install New Software... > Add... > Archive...**, then restart Eclipse.
+
 ### Running in Eclipse
 
 1. Import all modules into your Eclipse workspace.
@@ -126,6 +135,16 @@ The project is a multi-module Maven/Tycho build consisting of OSGi bundles:
 This project enforces **Google Java Style** (with customizations) via Checkstyle. The configuration is in [`checkstyle.xml`](checkstyle.xml).
 
 ## Development Guidelines
+
+### Local Agent Controls
+
+This build keeps Agent Mode, auto-approval settings (including YOLO mode), and MCP server configuration available
+regardless of organization policy or token feature flags. Users control approvals through
+**Preferences > Copilot > Auto-Approve** and MCP servers through **Preferences > Copilot > MCP**.
+YOLO mode remains opt-in; disabling it restores the user's individual approval rules and confirmation prompts.
+The MCP registry URL comes from local preferences and remains editable. Extension-contributed MCP servers still
+require user trust approval. These client settings do not change authorization enforced by remote services or the
+bundled language server.
 
 ### Threading
 

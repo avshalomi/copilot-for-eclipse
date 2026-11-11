@@ -102,8 +102,9 @@ public class McpConfigService extends ChatBaseService implements IMcpConfigServi
 
     featureFlagNotifiedEventHandler = event -> {
       Object params = event.getProperty(IEventBroker.DATA);
-      if (params instanceof DidChangeFeatureFlagsParams featureFlagsParams) {
-        ensureRealm(() -> mcpEnabledObservableValue.setValue(featureFlagsParams.isMcpEnabled()));
+      if (params instanceof DidChangeFeatureFlagsParams) {
+        ensureRealm(() -> mcpEnabledObservableValue.setValue(
+            CopilotCore.getPlugin().getFeatureFlags().isMcpEnabled()));
       }
     };
 

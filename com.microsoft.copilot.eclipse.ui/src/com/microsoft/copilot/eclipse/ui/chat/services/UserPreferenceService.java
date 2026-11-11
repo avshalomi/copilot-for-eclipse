@@ -111,13 +111,13 @@ public class UserPreferenceService extends ChatBaseService implements CopilotAut
 
     featureFlagNotifiedEventHandler = event -> {
       Object property = event.getProperty(IEventBroker.DATA);
-      if (property instanceof DidChangeFeatureFlagsParams params) {
+      if (property instanceof DidChangeFeatureFlagsParams) {
         ensureRealm(() -> {
           if (!Arrays.deepEquals(getAvailableChatModes(), chatModeObservable.getValue())) {
             chatModeObservable.setValue(getAvailableChatModes());
           }
 
-          if (!params.isAgentModeEnabled()) {
+          if (!CopilotCore.getPlugin().getFeatureFlags().isAgentModeEnabled()) {
             setActiveChatMode(ChatMode.Ask.toString());
           }
         });

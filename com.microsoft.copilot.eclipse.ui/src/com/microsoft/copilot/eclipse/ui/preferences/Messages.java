@@ -147,6 +147,11 @@ public class Messages extends NLS {
 
   //Agent Max Requests
   public static String preferences_page_agent_max_requests;
+  public static String preferences_page_chat_max_retries;
+  public static String preferences_page_chat_max_retries_validation_error;
+  public static String preferences_page_chat_retry_interval;
+  public static String preferences_page_chat_retry_interval_validation_error;
+  public static String preferences_page_chat_retry_desc;
   public static String preferences_page_agent_max_requests_desc;
   public static String preferences_page_agent_max_requests_validation_error;
 

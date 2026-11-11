@@ -26,6 +26,8 @@ public class Constants {
   public static final String PROXY_KERBEROS_SP = "proxyKerberosSp";
   public static final String GITHUB_ENTERPRISE = "githubEnterprise";
   public static final String AGENT_MAX_REQUESTS = "agentMaxRequests";
+  public static final String CHAT_MAX_RETRIES = "chatMaxRetries";
+  public static final String CHAT_RETRY_INTERVAL_SECONDS = "chatRetryIntervalSeconds";
   public static final String ENABLE_SKILLS = "enableSkills";
   public static final String TRANSCRIPT_SUBDIR = ".copilot/eclipse";
   public static final String MCP = "mcp";

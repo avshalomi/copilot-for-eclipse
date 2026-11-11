@@ -6,11 +6,13 @@ package com.microsoft.copilot.eclipse.core.lsp;
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResource;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.lsp4e.LanguageServerWrapper;
 import org.eclipse.lsp4j.Command;
@@ -23,7 +25,9 @@ import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.services.LanguageServer;
 
 import com.microsoft.copilot.eclipse.core.AuthStatusManager;
+import com.microsoft.copilot.eclipse.core.Constants;
 import com.microsoft.copilot.eclipse.core.CopilotCore;
+import com.microsoft.copilot.eclipse.core.chat.ChatRequestRetry;
 import com.microsoft.copilot.eclipse.core.lsp.mcp.McpRegistryAllowList;
 import com.microsoft.copilot.eclipse.core.lsp.mcp.McpServerToolsCollection;
 import com.microsoft.copilot.eclipse.core.lsp.mcp.registry.GetServerParams;
@@ -280,49 +284,50 @@ public class CopilotLanguageServerConnection {
     boolean supportVision = activeModel.getCapabilities().supports().vision();
     Either<String, List<ChatCompletionContentPart>> messageWithImages = ChatMessageUtils
         .createMessageWithImages(message, FileUtils.filterFilesFrom(files), supportVision);
-    Function<LanguageServer, CompletableFuture<ChatCreateResult>> fn = server -> {
-      ConversationCreateParams param = new ConversationCreateParams(messageWithImages, workDoneToken);
-      param.setReferences(FileUtils.convertToChatReferences(files));
-      param.setModel(getModelName(activeModel));
-      param.setModelProviderName(activeModel.getProviderName());
-      param.setModelInfo(buildModelInfo(activeModel, reasoningEffort, contextSize));
-      param.setChatMode(chatModeName);
-      param.setCustomChatModeId(customChatModeId);
+    Function<String, CompletableFuture<ChatCreateResult>> request = attemptToken ->
+        this.languageServerWrapper.execute(server -> {
+          ConversationCreateParams param = new ConversationCreateParams(messageWithImages, attemptToken);
+          param.setReferences(FileUtils.convertToChatReferences(files));
+          param.setModel(getModelName(activeModel));
+          param.setModelProviderName(activeModel.getProviderName());
+          param.setModelInfo(buildModelInfo(activeModel, reasoningEffort, contextSize));
+          param.setChatMode(chatModeName);
+          param.setCustomChatModeId(customChatModeId);
 
-      // Set historical turns if provided, inserting them before the current user message.
-      if (turns != null && turns.size() > 0) {
-        param.getTurns().addAll(0, turns);
-      }
+          // Set historical turns if provided, inserting them before the current user message.
+          if (turns != null && turns.size() > 0) {
+            param.getTurns().addAll(0, turns);
+          }
 
-      if (StringUtils.isBlank(agentSlug)) {
-        param.setWorkspaceFolders(workspaceFolders == null ? List.of() : workspaceFolders);
-        param.setTodoList(todos);
-      } else {
-        // Set agentSlug on the last turn (current user message) after history insertion
-        if (param.getTurns() != null && !param.getTurns().isEmpty()) {
-          param.getTurns().get(param.getTurns().size() - 1).setAgentSlug(agentSlug);
-        }
-        param.setWorkspaceFolder(agentJobWorkspaceFolder);
-      }
+          if (StringUtils.isBlank(agentSlug)) {
+            param.setWorkspaceFolders(workspaceFolders == null ? List.of() : workspaceFolders);
+            param.setTodoList(todos);
+          } else {
+            // Set agentSlug on the last turn (current user message) after history insertion
+            if (param.getTurns() != null && !param.getTurns().isEmpty()) {
+              param.getTurns().get(param.getTurns().size() - 1).setAgentSlug(agentSlug);
+            }
+            param.setWorkspaceFolder(agentJobWorkspaceFolder);
+          }
 
-      // TODO: remove needToolCallConfirmation when CLS fully supports it across all IDEs.
-      param.setNeedToolCallConfirmation(true);
+          // TODO: remove needToolCallConfirmation when CLS fully supports it across all IDEs.
+          param.setNeedToolCallConfirmation(true);
 
-      // Set conversationId and restoreToTurnId for session restoration from history
-      if (conversationId != null) {
-        param.setConversationId(conversationId);
-        param.setRestoreToTurnId(restoreToTurnId);
-      }
+          // Set conversationId and restoreToTurnId for session restoration from history
+          if (conversationId != null) {
+            param.setConversationId(conversationId);
+            param.setRestoreToTurnId(restoreToTurnId);
+          }
 
-      if (currentFile != null) {
-        param.setTextDocument(new TextDocumentIdentifier(FileUtils.getResourceUri(currentFile)));
-        if (currentSelection != null) {
-          param.setSelection(currentSelection);
-        }
-      }
-      return ((CopilotLanguageServer) server).create(param);
-    };
-    return this.languageServerWrapper.execute(fn);
+          if (currentFile != null) {
+            param.setTextDocument(new TextDocumentIdentifier(FileUtils.getResourceUri(currentFile)));
+            if (currentSelection != null) {
+              param.setSelection(currentSelection);
+            }
+          }
+          return ((CopilotLanguageServer) server).create(param);
+        });
+    return executeChatRequest(workDoneToken, agentSlug, request);
   }
 
   /**
@@ -341,35 +346,54 @@ public class CopilotLanguageServerConnection {
     boolean supportVision = activeModel.getCapabilities().supports().vision();
     Either<String, List<ChatCompletionContentPart>> messageWithImages = ChatMessageUtils
         .createMessageWithImages(message, FileUtils.filterFilesFrom(files), supportVision);
-    Function<LanguageServer, CompletableFuture<ChatTurnResult>> fn = server -> {
-      ConversationTurnParams param = new ConversationTurnParams(workDoneToken, conversationId, messageWithImages);
-      param.setReferences(FileUtils.convertToChatReferences(files));
-      param.setModel(getModelName(activeModel));
-      param.setModelProviderName(activeModel.getProviderName());
-      param.setModelInfo(buildModelInfo(activeModel, reasoningEffort, contextSize));
-      param.setChatMode(chatModeName);
-      param.setCustomChatModeId(customChatModeId);
+    Function<String, CompletableFuture<ChatTurnResult>> request = attemptToken ->
+        this.languageServerWrapper.execute(server -> {
+          ConversationTurnParams param = new ConversationTurnParams(attemptToken, conversationId, messageWithImages);
+          param.setReferences(FileUtils.convertToChatReferences(files));
+          param.setModel(getModelName(activeModel));
+          param.setModelProviderName(activeModel.getProviderName());
+          param.setModelInfo(buildModelInfo(activeModel, reasoningEffort, contextSize));
+          param.setChatMode(chatModeName);
+          param.setCustomChatModeId(customChatModeId);
 
-      if (StringUtils.isBlank(agentSlug)) {
-        param.setWorkspaceFolders(workspaceFolders == null ? List.of() : workspaceFolders);
-        param.setTodoList(todoList);
-      } else {
-        param.setAgentSlug(agentSlug);
-        param.setWorkspaceFolder(agentJobWorkspaceFolder);
-      }
+          if (StringUtils.isBlank(agentSlug)) {
+            param.setWorkspaceFolders(workspaceFolders == null ? List.of() : workspaceFolders);
+            param.setTodoList(todoList);
+          } else {
+            param.setAgentSlug(agentSlug);
+            param.setWorkspaceFolder(agentJobWorkspaceFolder);
+          }
 
-      // TODO: remove needToolCallConfirmation when CLS fully supports it across all IDEs.
-      param.setNeedToolCallConfirmation(true);
-      if (currentFile != null) {
-        param.setTextDocument(new TextDocumentIdentifier(FileUtils.getResourceUri(currentFile)));
-        if (currentSelection != null) {
-          param.setSelection(currentSelection);
-        }
-      }
+          // TODO: remove needToolCallConfirmation when CLS fully supports it across all IDEs.
+          param.setNeedToolCallConfirmation(true);
+          if (currentFile != null) {
+            param.setTextDocument(new TextDocumentIdentifier(FileUtils.getResourceUri(currentFile)));
+            if (currentSelection != null) {
+              param.setSelection(currentSelection);
+            }
+          }
 
-      return ((CopilotLanguageServer) server).addTurn(param);
-    };
-    return this.languageServerWrapper.execute(fn);
+          return ((CopilotLanguageServer) server).addTurn(param);
+        });
+    return executeChatRequest(workDoneToken, agentSlug, request);
+  }
+
+  private <T> CompletableFuture<T> executeChatRequest(String token, String agentSlug,
+      Function<String, CompletableFuture<T>> request) {
+    // Remote coding-agent jobs can have side effects before progress is reported; never resubmit them automatically.
+    if (StringUtils.isNotBlank(agentSlug)) {
+      return request.apply(token);
+    }
+    String preferenceNode = "com.microsoft.copilot.eclipse.ui";
+    int maxRetries = Platform.getPreferencesService().getInt(preferenceNode, Constants.CHAT_MAX_RETRIES,
+        ChatRequestRetry.DEFAULT_MAX_RETRIES, null);
+    int interval = Platform.getPreferencesService().getInt(preferenceNode, Constants.CHAT_RETRY_INTERVAL_SECONDS,
+        ChatRequestRetry.DEFAULT_INTERVAL_SECONDS, null);
+    if (maxRetries <= 0) {
+      return request.apply(token);
+    }
+    interval = Math.max(1, Math.min(ChatRequestRetry.MAX_INTERVAL_SECONDS, interval));
+    return ChatRequestRetry.execute(token, request, maxRetries, TimeUnit.SECONDS.toMillis(interval));
   }
 
   /**
@@ -735,6 +759,7 @@ public class CopilotLanguageServerConnection {
    * Stop the language server.
    */
   public void stop() {
+    ChatRequestRetry.cancelAll();
     this.languageServerWrapper.stop();
   }
 

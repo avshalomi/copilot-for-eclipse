@@ -13,8 +13,6 @@ import org.eclipse.swt.widgets.Shell;
 import com.microsoft.copilot.eclipse.core.Constants;
 import com.microsoft.copilot.eclipse.core.CopilotCore;
 import com.microsoft.copilot.eclipse.core.lsp.CopilotLanguageServerConnection;
-import com.microsoft.copilot.eclipse.core.lsp.mcp.McpRegistryAllowList;
-import com.microsoft.copilot.eclipse.core.lsp.mcp.RegistryAccess;
 import com.microsoft.copilot.eclipse.core.lsp.mcp.registry.ListServersParams;
 import com.microsoft.copilot.eclipse.core.lsp.mcp.registry.Package;
 import com.microsoft.copilot.eclipse.core.lsp.mcp.registry.Remote;
@@ -41,7 +39,6 @@ public class McpRegistryController {
 
   private CompletableFuture<ServerList> currentLoadFuture;
 
-  private McpRegistryAllowList mcpAllowList;
   private String mcpRegistryBaseUrl = "";
   private String mcpRegistryFullUrl = "";
 
@@ -70,16 +67,14 @@ public class McpRegistryController {
   }
 
   /**
-   * Loads the MCP registry URL and allow list from the server.
+   * Loads the MCP registry URL from the user's preferences.
    *
    * @return a future that completes when the URL is loaded
    */
-  public CompletableFuture<Void> loadMcpRegistryAllowListAndUrl() {
-    return McpUtils.getMcpAllowList(copilotLanguageServerConnection).thenAccept(allowList -> {
-      this.mcpAllowList = allowList;
-      this.mcpRegistryBaseUrl = McpUtils.parseMcpRegistryBaseUrlFromAllowList(allowList);
-      this.mcpRegistryFullUrl = this.mcpRegistryBaseUrl + MCP_REGISTRY_VERSION_SUFFIX;
-    });
+  public CompletableFuture<Void> loadMcpRegistryUrl() {
+    this.mcpRegistryBaseUrl = McpUtils.getMcpRegistryBaseUrl();
+    this.mcpRegistryFullUrl = this.mcpRegistryBaseUrl + MCP_REGISTRY_VERSION_SUFFIX;
+    return CompletableFuture.completedFuture(null);
   }
 
   /**
@@ -243,15 +238,4 @@ public class McpRegistryController {
     return !nextCursor.isEmpty();
   }
 
-  /**
-   * Checks if the current registry access mode is registry_only.
-   *
-   * @return true if registry access is registry_only
-   */
-  public boolean isRegistryOnlyMode() {
-    if (mcpAllowList == null || mcpAllowList.getMcpRegistries().isEmpty()) {
-      return false;
-    }
-    return mcpAllowList.getMcpRegistries().get(0).getRegistryAccess() == RegistryAccess.registry_only;
-  }
 }
